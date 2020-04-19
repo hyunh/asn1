@@ -18,11 +18,13 @@ package hyunh.asn1
 
 class Ber {
     companion object {
+        private const val LAST_OCTET = 0x80
         private const val CONSTRUCTED_TAG = 0x20
         private const val HIGH_TAG_NUMBER = 0x1F
     }
 
     constructor(data: ByteArray) {
+        decode(data)
     }
 
     constructor(tag: Int, value: ByteArray? = null) {
@@ -47,6 +49,8 @@ class Ber {
     var data: ByteArray? = null
         private set
 
+    fun isConstructed() = false
+
     fun find(tag: Int): Ber? {
         return null
     }
@@ -56,5 +60,19 @@ class Ber {
     }
 
     private fun decode(data: ByteArray) {
+        if (data.isEmpty()) {
+            throw IllegalArgumentException()
+        }
+
+        var offset = 0
+        tag = data[offset++].asInt()
+        if (tag and HIGH_TAG_NUMBER == HIGH_TAG_NUMBER) {
+            while (true) {
+                tag = tag.shl(Byte.SIZE_BITS) or data[offset++].asInt()
+                if (tag and LAST_OCTET != LAST_OCTET) {
+                    break
+                }
+            }
+        }
     }
 }

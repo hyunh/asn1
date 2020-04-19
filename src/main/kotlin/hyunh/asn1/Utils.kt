@@ -17,3 +17,5 @@ fun Byte.toHexString(): String {
         append(hex[toInt() and 0x0F])
     }.toString()
 }
+
+fun Byte.asInt() = toInt() and 0xFF
