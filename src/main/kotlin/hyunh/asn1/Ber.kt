@@ -16,43 +16,35 @@
 
 package hyunh.asn1
 
-class Ber {
+class Ber private constructor(private val data: ByteArray) {
+
     companion object {
         private const val LAST_OCTET = 0x80
         private const val CONSTRUCTED_TAG = 0x20
         private const val HIGH_TAG_NUMBER = 0x1F
+
+        fun make(data: ByteArray) = Ber(data).apply {
+            decode(data)
+        }
     }
 
-    constructor(data: ByteArray) {
-        decode(data)
-    }
-
-    constructor(tag: Int, value: ByteArray? = null) {
-    }
-
-    constructor(tag: Int, children: List<Ber>) {
-    }
-
-    var tag: Int = 0
+    var identifier: Int = 0
         private set
 
     var length: Int = 0
         private set
 
-    var value: ByteArray? = null
+    var contents: ByteArray? = null
         private set
 
     val children: List<Ber> by lazy {
         mutableListOf()
     }
 
-    var data: ByteArray? = null
-        private set
-
     fun isConstructed() = false
 
     fun find(tag: Int): Ber? {
-        return null
+        TODO("find")
     }
 
     fun findAll(tag: Int): List<Ber> {
@@ -61,18 +53,41 @@ class Ber {
 
     private fun decode(data: ByteArray) {
         if (data.isEmpty()) {
-            throw IllegalArgumentException()
+            throw IllegalArgumentException("data shall not be empty")
         }
 
         var offset = 0
-        tag = data[offset++].asInt()
-        if (tag and HIGH_TAG_NUMBER == HIGH_TAG_NUMBER) {
+        identifier = decodeIdentifier(data, offset)
+        offset += identifier.toByteArray().size
+
+        length = decodeLength(data, offset)
+        offset += length.toByteArray().size
+
+        contents = data.copyOfRange(offset, data.size)
+
+        make(data.copyOfRange(0, 0))
+    }
+
+    private fun decodeIdentifier(data: ByteArray, start: Int): Int {
+        if (data.size <= start) {
+            throw IndexOutOfBoundsException()
+        }
+        var offset = start
+
+        var identifier = data[offset++].asInt()
+        if (identifier and HIGH_TAG_NUMBER == HIGH_TAG_NUMBER) {
             while (true) {
-                tag = tag.shl(Byte.SIZE_BITS) or data[offset++].asInt()
-                if (tag and LAST_OCTET != LAST_OCTET) {
+                identifier = identifier.shl(Byte.SIZE_BITS) or data[offset++].asInt()
+                if (identifier and LAST_OCTET != LAST_OCTET) {
                     break
                 }
             }
         }
+
+        return identifier
+    }
+
+    private fun decodeLength(data: ByteArray, start: Int): Int {
+        TODO("decodeLength")
     }
 }
