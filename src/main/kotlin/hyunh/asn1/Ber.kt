@@ -88,6 +88,27 @@ class Ber private constructor(private val data: ByteArray) {
     }
 
     private fun decodeLength(data: ByteArray, start: Int): Int {
-        TODO("decodeLength")
+        if (data.size <= start) {
+            throw IndexOutOfBoundsException()
+        }
+        var offset = start
+        var length = data[offset++].asInt()
+        return when {
+            length == 0x80 -> { // Indefinite
+                -1
+            }
+            length and 0x80 == 0x80 -> { // Long Form
+                var numberOfSubsequentOctet = length and 0x7F
+                length = 0
+                while (numberOfSubsequentOctet-- > 0) {
+                    length.shl(Byte.SIZE_BITS)
+                    length = length or data[offset++].toInt()
+                }
+                length
+            }
+            else -> { //Short Form
+                length
+            }
+        }
     }
 }
