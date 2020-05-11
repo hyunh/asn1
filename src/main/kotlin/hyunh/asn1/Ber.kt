@@ -16,99 +16,116 @@
 
 package hyunh.asn1
 
-class Ber private constructor(private val data: ByteArray) {
+import kotlin.experimental.and
 
+class Ber private constructor(
+    private val data: ByteArray
+) {
     companion object {
-        private const val LAST_OCTET = 0x80
-        private const val CONSTRUCTED_TAG = 0x20
-        private const val HIGH_TAG_NUMBER = 0x1F
+        private const val LAST_OCTET = 0x80.toByte()
+        private const val CONSTRUCTED_TAG: Byte = 0x20
+        private const val HIGH_TAG_NUMBER: Byte = 0x1F
 
-        fun make(data: ByteArray) = Ber(data).apply {
-            decode(data)
+        const val CLASS_UNIVERSAL = 0
+        const val CLASS_APPLICATION = 1
+        const val CLASS_CONTEXT_SPECIFIC = 2
+        const val CLASS_PRIVATE = 3
+
+        /**
+         * Create Ber object from [data]
+         *
+         * @param data Encoded data array. This shall not be empty.
+         * @throws IllegalArgumentException If [data] is empty, or it is not valid for decoding.
+         */
+        fun make(data: ByteArray): Ber {
+            if (data.isEmpty()) {
+                throw IllegalArgumentException("data shall not be empty")
+            }
+            return Ber(data).apply {
+                decode()
+            }
         }
     }
 
-    var identifier: Int = 0
+    lateinit var identifier: ByteArray
         private set
 
-    var length: Int = 0
+    lateinit var length: ByteArray
         private set
 
     var contents: ByteArray? = null
         private set
 
-    val children: List<Ber> by lazy {
-        mutableListOf()
-    }
-
-    fun isConstructed() = false
-
-    fun find(tag: Int): Ber? {
-        TODO("find")
-    }
-
-    fun findAll(tag: Int): List<Ber> {
-        return listOf()
-    }
-
-    private fun decode(data: ByteArray) {
-        if (data.isEmpty()) {
-            throw IllegalArgumentException("data shall not be empty")
+    fun classOfTag(): Int {
+        if (identifier.isNotEmpty()) {
+            return identifier.first().asInt().ushr(6)
         }
+        throw IllegalStateException("identifier is empty")
+    }
 
+    fun isConstructed() = identifier.isNotEmpty() && identifier.first().isSet(0x20)
+
+    private fun decode() {
         var offset = 0
+
         identifier = decodeIdentifier(data, offset)
-        offset += identifier.toByteArray().size
+        offset += identifier.size
 
         length = decodeLength(data, offset)
-        offset += length.toByteArray().size
+        offset += length.size
 
         contents = data.copyOfRange(offset, data.size)
-
-        make(data.copyOfRange(0, 0))
-    }
-
-    private fun decodeIdentifier(data: ByteArray, start: Int): Int {
-        if (data.size <= start) {
-            throw IndexOutOfBoundsException()
-        }
-        var offset = start
-
-        var identifier = data[offset++].asInt()
-        if (identifier and HIGH_TAG_NUMBER == HIGH_TAG_NUMBER) {
-            while (true) {
-                identifier = identifier.shl(Byte.SIZE_BITS) or data[offset++].asInt()
-                if (identifier and LAST_OCTET != LAST_OCTET) {
-                    break
-                }
+        if (isConstructed()) {
+            contents?.let {
+                decodeChildren(it, offset)
             }
         }
-
-        return identifier
     }
 
-    private fun decodeLength(data: ByteArray, start: Int): Int {
+    private fun decodeIdentifier(
+            data: ByteArray,
+            start: Int
+    ): ByteArray {
         if (data.size <= start) {
-            throw IndexOutOfBoundsException()
+            throw IndexOutOfBoundsException("data size: ${data.size} start: $start")
         }
-        var offset = start
-        var length = data[offset++].asInt()
+        return if (data[start].isSet(HIGH_TAG_NUMBER)) {
+            for (offset in start until data.size) {
+                if (data[offset].isNotSet(LAST_OCTET)) {
+                    return data.copyOfRange(start, offset + 1)
+                }
+            }
+            throw IllegalArgumentException("Last octet can't be identified")
+        } else {
+            byteArrayOf(data[start])
+        }
+    }
+
+    private fun decodeLength(
+            data: ByteArray,
+            start: Int
+    ): ByteArray {
+        if (data.size <= start) {
+            throw IndexOutOfBoundsException("data size: ${data.size} start: $start")
+        }
         return when {
-            length == 0x80 -> { // Indefinite
-                -1
+            data[start] == 0x80.toByte() -> { // indefinite
+                return byteArrayOf(0x80.toByte())
             }
-            length and 0x80 == 0x80 -> { // Long Form
-                var numberOfSubsequentOctet = length and 0x7F
-                length = 0
+            data[start].isSet(0x80.toByte()) -> { // definite long form
+                var offset = start
+                var numberOfSubsequentOctet = data[offset++] and 0x7F
                 while (numberOfSubsequentOctet-- > 0) {
-                    length.shl(Byte.SIZE_BITS)
-                    length = length or data[offset++].toInt()
+                    offset++
                 }
-                length
+                return data.copyOfRange(start, offset)
             }
-            else -> { //Short Form
-                length
+            else -> { // definite short form
+                byteArrayOf(data[start])
             }
         }
+    }
+
+    private fun decodeChildren(data: ByteArray, start: Int) {
     }
 }
