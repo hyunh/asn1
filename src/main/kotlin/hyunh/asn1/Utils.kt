@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 Hyunhae Lee
+ * Copyright (C) 2021 Hyunhae Lee
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,78 +18,43 @@ package hyunh.asn1
 
 import kotlin.experimental.and
 
-fun Char.hexCharToInt(): Int {
-    if (this in '0'..'9') return (this - '0')
-    if (this in 'a'..'f') return (this - 'a' + 10)
-    if (this in 'A'..'F') return (this - 'A' + 10)
+private const val HEX ="0123456789ABCDEF"
 
-    throw RuntimeException()
+fun Char.hexToInt() = when (this) {
+    in '0'..'9' -> this - '0'
+    in 'a'..'f' -> this - 'a' + 10
+    in 'A'..'F' -> this - 'A' + 10
+    else -> throw IllegalStateException("$this can't be converted to Int")
 }
 
-fun String.hexStringToBytes(): ByteArray {
-    val from = toUpperCase()
-
-    val bytes = ByteArray(length / 2)
-
-    for (i in bytes.indices) {
-        bytes[i] = (from[i * 2].hexCharToInt().shl(4) or
-                from[i * 2 + 1].hexCharToInt()).toByte()
+fun String.hexToBytes(): ByteArray {
+    if (length % 2 == 1) {
+        throw IllegalStateException("Invalid length for HEX")
     }
+    return ByteArray(length / 2).apply {
+        val from = toUpperCase()
+        for (i in indices) {
+            this[i] = (from[i * 2].hexToInt().shl(4) or
+                    from[i * 2 + 1].hexToInt()).toByte()
+        }
+    }
+}
 
-    return bytes
+fun ByteArray.toHexString(): String {
+    return StringBuilder().apply {
+        this@toHexString.forEach {
+            append(HEX[it.toInt().ushr(4) and 0x0F])
+            append(HEX[it.toInt() and 0x0F])
+        }
+    }.toString()
 }
 
 fun Byte.toHexString(): String {
-    return StringBuilder().apply {
-        val hex = "0123456789ABCDEF"
-        append(hex[toInt().ushr(4) and 0x0F])
-        append(hex[toInt() and 0x0F])
-    }.toString()
+    return "${HEX[toInt().ushr(4) and 0x0F]}${HEX[toInt() and 0x0F]}"
 }
 
 fun Byte.asInt() = toInt() and 0xFF
 
-fun Byte.isSet(target: Byte): Boolean {
-    return this and target == target
-}
+fun Byte.isSet(target: Byte) = this and target == target
 
 fun Byte.isNotSet(target: Byte) = !isSet(target)
-
-fun ByteArray.toHexString(): String {
-    return StringBuilder(this.size * 2).also { builder ->
-        val hex = "0123456789ABCDEF"
-        forEach {
-            builder.append(hex[it.toInt().ushr(4) and 0x0F])
-            builder.append(hex[it.toInt() and 0x0F])
-        }
-    }.toString()
-}
-
-fun Int.toByteArray(): ByteArray {
-    when {
-        this <= 0xFF -> {
-            return byteArrayOf(toByte())
-        }
-        this <= 0xFFFF -> {
-            return byteArrayOf(
-                (this and 0xFF00).ushr(Byte.SIZE_BITS).toByte(),
-                (this and 0xFF).toByte()
-            )
-        }
-        this <= 0xFFFFFF -> {
-            return byteArrayOf(
-                (this and 0xFF0000).ushr(Byte.SIZE_BITS * 2).toByte(),
-                (this and 0xFF00).ushr(Byte.SIZE_BITS).toByte(),
-                (this and 0xFF).toByte()
-            )
-        }
-        else -> {
-            return byteArrayOf(
-                (this and 0xFF000000.toInt()).ushr(Byte.SIZE_BITS * 3).toByte(),
-                (this and 0xFF0000).ushr(Byte.SIZE_BITS * 2).toByte(),
-                (this and 0xFF00).ushr(Byte.SIZE_BITS).toByte(),
-                (this and 0xFF).toByte()
-            )
-        }
-    }
-}
